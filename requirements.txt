@@ -1,0 +1,7 @@
+requests>=2.28.0
+python-dotenv>=1.0.0
+piper-tts
+numpy
+onnxruntime
+pydub>=0.25.1
+

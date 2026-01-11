@@ -1,0 +1,24 @@
+[Unit]
+Description=VK Voice Bot
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/vk-voice-bot
+Environment="PATH=/opt/vk-voice-bot/venv/bin"
+ExecStart=/opt/vk-voice-bot/venv/bin/python /opt/vk-voice-bot/vk_bot.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Ограничения ресурсов
+MemoryLimit=2G
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target
+
+
+

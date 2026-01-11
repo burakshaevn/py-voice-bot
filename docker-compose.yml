@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  vk-bot:
+    build: .
+    container_name: vk-voice-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Монтируем .env файл (если нужно обновлять без пересборки)
+      - ./.env:/app/.env:ro
+      # Монтируем модель (если она в отдельной директории)
+      - ./piper1-gpl/ru_RU-ruslan-medium.onnx:/app/piper1-gpl/ru_RU-ruslan-medium.onnx:ro
+      - ./piper1-gpl/ru_RU-ruslan-medium.onnx.json:/app/piper1-gpl/ru_RU-ruslan-medium.onnx.json:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Ограничения ресурсов (опционально)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+
+
