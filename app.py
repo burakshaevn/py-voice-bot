@@ -48,7 +48,7 @@ class VKBotApp:
             self.voice_service, 
             self.db_service
         )
-        self.admin_controller = AdminController(self.vk_api, self.db_service)
+        self.admin_controller = AdminController(self.vk_api, self.db_service, self.voice_service)
         
         logger.info("Приложение успешно инициализировано")
     

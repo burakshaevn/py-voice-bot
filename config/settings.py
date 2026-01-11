@@ -28,7 +28,7 @@ LONG_POLL_WAIT = 25
 LONG_POLL_TIMEOUT = 30
 
 # Путь к модели голоса
-DEFAULT_MODEL_PATH = None  # Используется путь по умолчанию из VoiceGenerator
+DEFAULT_MODEL_PATH = None  # Используется путь по умолчанию из VoiceService
 
 # Лимиты
 MAX_TEXT_LENGTH = 1000

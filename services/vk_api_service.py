@@ -141,4 +141,51 @@ class VKAPIService:
         except Exception as e:
             logger.error(f"Ошибка при получении информации о пользователях: {e}")
             return []
+    
+    def get_unread_conversations(self, count: int = 20) -> list[Dict[str, Any]]:
+        """
+        Получает список непрочитанных диалогов.
+        
+        :param count: Количество диалогов для получения
+        :return: Список диалогов с информацией о последнем сообщении
+        """
+        try:
+            result = self._api_request("messages.getConversations", {
+                "filter": "unread",  # Только непрочитанные
+                "count": count,
+                "extended": 0
+            })
+            
+            items = result.get("items", [])
+            conversations = []
+            
+            for item in items:
+                conversation = item.get("conversation", {})
+                last_message = item.get("last_message", {})
+                
+                # Получаем peer_id (ID собеседника)
+                peer_id = conversation.get("peer", {}).get("id")
+                if not peer_id:
+                    continue
+                
+                # Извлекаем текст последнего сообщения
+                text = last_message.get("text", "").strip()
+                
+                # Пропускаем пустые сообщения
+                if not text:
+                    continue
+                
+                conversations.append({
+                    "peer_id": peer_id,
+                    "text": text,
+                    "date": last_message.get("date", 0)
+                })
+            
+            # Сортируем по дате (новые первыми)
+            conversations.sort(key=lambda x: x["date"], reverse=True)
+            
+            return conversations[:count]
+        except Exception as e:
+            logger.error(f"Ошибка при получении непрочитанных диалогов: {e}")
+            return []
 

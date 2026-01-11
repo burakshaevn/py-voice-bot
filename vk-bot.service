@@ -4,10 +4,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-WorkingDirectory=/opt/vk-voice-bot
-Environment="PATH=/opt/vk-voice-bot/venv/bin"
-ExecStart=/opt/vk-voice-bot/venv/bin/python /opt/vk-voice-bot/vk_bot.py
+User=root
+WorkingDirectory=/root/py-voice-bot
+Environment="PATH=/root/py-voice-bot/piper1-gpl/.venv/bin"
+ExecStart=/root/py-voice-bot/piper1-gpl/.venv/bin/python /root/py-voice-bot/app.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -19,6 +19,3 @@ CPUQuota=100%
 
 [Install]
 WantedBy=multi-user.target
-
-
-

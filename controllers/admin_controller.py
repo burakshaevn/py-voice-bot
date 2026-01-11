@@ -4,9 +4,12 @@ import logging
 import re
 from typing import Optional, List, Dict, Any
 
+from pathlib import Path
 from models.message import Message
 from services.vk_api_service import VKAPIService
 from services.database_service import DatabaseService
+from services.voice_service import VoiceService
+from config.settings import TEMP_AUDIO_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -14,15 +17,17 @@ logger = logging.getLogger(__name__)
 class AdminController:
     """Контроллер для обработки административных команд."""
     
-    def __init__(self, vk_api: VKAPIService, db_service: DatabaseService):
+    def __init__(self, vk_api: VKAPIService, db_service: DatabaseService, voice_service: VoiceService):
         """
         Инициализация админского контроллера.
         
         :param vk_api: Сервис VK API
         :param db_service: Сервис базы данных
+        :param voice_service: Сервис генерации голоса
         """
         self.vk_api = vk_api
         self.db_service = db_service
+        self.voice_service = voice_service
     
     def handle_command(self, message: Message, command: str) -> bool:
         """
@@ -53,6 +58,8 @@ class AdminController:
             self._handle_stats(message)
         elif cmd == "broadcast":
             self._handle_broadcast(message, args)
+        elif cmd == "answer" or cmd == "reply":
+            self._handle_answer_unread(message, args)
         else:
             return False
         
@@ -381,6 +388,123 @@ class AdminController:
             self.vk_api.send_message(
                 message.user_id,
                 f"❌ Ошибка при выполнении рассылки: {str(e)}"
+            )
+    
+    def _handle_answer_unread(self, message: Message, args: str) -> None:
+        """
+        Отвечает на последние N непрочитанных диалогов, озвучивая последнее сообщение.
+        
+        Команда: /answer <N> или /reply <N>
+        Пример: /answer 5
+        """
+        if not args:
+            self.vk_api.send_message(
+                message.user_id,
+                "❌ Использование: /answer <количество>\n"
+                "Пример: /answer 5\n\n"
+                "Бот ответит на последние N непрочитанных диалогов, озвучив последнее сообщение в каждом."
+            )
+            return
+        
+        try:
+            count = int(args.strip())
+            if count <= 0 or count > 50:
+                self.vk_api.send_message(
+                    message.user_id,
+                    "❌ Количество должно быть от 1 до 50"
+                )
+                return
+            
+            # Получаем непрочитанные диалоги
+            conversations = self.vk_api.get_unread_conversations(count)
+            
+            if not conversations:
+                self.vk_api.send_message(
+                    message.user_id,
+                    "✅ Непрочитанных диалогов не найдено"
+                )
+                return
+            
+            # Ограничиваем количество
+            conversations = conversations[:count]
+            
+            # Обрабатываем каждый диалог
+            processed = 0
+            failed = 0
+            
+            for conv in conversations:
+                try:
+                    peer_id = conv["peer_id"]
+                    text = conv["text"]
+                    
+                    # Для личных сообщений peer_id = user_id
+                    # Для групп/чатов peer_id начинается с 2000000000
+                    # Пропускаем группы и чаты, обрабатываем только личные сообщения
+                    if peer_id >= 2000000000:
+                        logger.info(f"Пропущен групповой диалог {peer_id}")
+                        continue
+                    
+                    user_id = peer_id
+                    
+                    # Проверяем, не заблокирован ли пользователь
+                    if self.db_service.is_user_blocked(user_id):
+                        logger.info(f"Пропущен заблокированный пользователь {user_id}")
+                        continue
+                    
+                    # Очищаем текст
+                    text_cleaned = self.voice_service.clean_text(text)
+                    
+                    if not text_cleaned:
+                        logger.warning(f"Пустой текст в диалоге {peer_id}")
+                        continue
+                    
+                    # Генерируем голосовое сообщение
+                    audio_data = self.voice_service.generate_voice_message(text_cleaned)
+                    
+                    # Сохраняем во временный файл
+                    temp_file = self.voice_service.save_audio_to_temp_file(
+                        audio_data, 
+                        f"{TEMP_AUDIO_FILE}_{peer_id}.wav"
+                    )
+                    
+                    try:
+                        # Загружаем и отправляем голосовое сообщение
+                        attachment = self.vk_api.upload_audio_message(str(temp_file), user_id)
+                        self.vk_api.send_message(
+                            user_id,
+                            "",  # Пустое текстовое сообщение, только голосовое
+                            attachment=attachment
+                        )
+                        processed += 1
+                        logger.info(f"Ответ отправлен пользователю {user_id}")
+                    finally:
+                        # Удаляем временный файл
+                        temp_file.unlink(missing_ok=True)
+                
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке диалога {conv.get('peer_id', 'unknown')}: {e}")
+                    failed += 1
+                    continue
+            
+            # Отправляем отчет админу
+            self.vk_api.send_message(
+                message.user_id,
+                f"✅ Обработка завершена!\n\n"
+                f"📤 Обработано диалогов: {processed}\n"
+                f"❌ Ошибок: {failed}\n"
+                f"👥 Всего найдено: {len(conversations)}"
+            )
+        
+        except ValueError:
+            self.vk_api.send_message(
+                message.user_id,
+                "❌ Неверный формат. Используйте число: /answer 5"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при обработке непрочитанных диалогов: {e}", exc_info=True)
+            self.vk_api.send_message(
+                message.user_id,
+                f"❌ Ошибка: {str(e)}"
             )
 
 
